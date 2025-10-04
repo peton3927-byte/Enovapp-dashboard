@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enov Clan Panel</title>
+<style>
+:root {
+  --bg:#f5f5f5; --card:#ffffff; --accent:#00cfff; --text:#111; --shadow:#00cfff33;
+}
+body{margin:0;padding:0;font-family:'Poppins',sans-serif;background:var(--bg);color:var(--text);}
+header{background:var(--card);padding:1rem;text-align:center;box-shadow:0 4px 15px var(--shadow);}
+header h1{color:var(--accent);}
+main{padding:1rem;display:flex;flex-direction:column;gap:1rem;}
+.card{background:var(--card);padding:1rem;border-radius:15px;box-shadow:0 4px 15px var(--shadow);transition:transform 0.3s;}
+.card:hover{transform:translateY(-5px);}
+button{background:var(--accent);border:none;color:#fff;padding:.5rem 1rem;border-radius:12px;cursor:pointer;transition:0.2s;}
+button:hover{transform:scale(1.05);}
+input,select,textarea{width:95%;padding:.5rem;margin:.3rem 0;border-radius:10px;border:1px solid #ccc;}
+.member{display:flex;justify-content:space-between;padding:.5rem;background:#f0f0f0;margin:.3rem 0;border-radius:10px;font-size:.9rem;transition:0.3s;}
+.member:hover{background:#e0f7ff;}
+#notification{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#000;padding:.7rem 1rem;border-radius:12px;display:none;z-index:100;}
+#loginOverlay{position:fixed;top:0;left:0;width:100%;height:100%;background:#0008;display:flex;justify-content:center;align-items:center;z-index:200;}
+#loginBox{background:var(--card);padding:2rem;border-radius:15px;text-align:center;box-shadow:0 0 20px var(--shadow);}
+#loginBox input{width:80%;padding:.6rem;margin-top:1rem;border-radius:10px;border:none;background:#f0f0f0;color:#111;text-align:center;}
+#chatBox{max-height:200px;overflow-y:auto;border:1px solid #ccc;padding:.5rem;margin-bottom:.5rem;border-radius:10px;background:#f9f9f9;}
+</style>
+
+<!-- Firebase Modular SDK -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getDatabase, ref, set, onValue, push, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+// --- Firebase Config ---
+const firebaseConfig = {
+  apiKey: "AIzaSyB-RGaKfSNNRRUMLnKMqdZaFjos_Gmcdp8",
+  authDomain: "enovclanadmin.firebaseapp.com",
+  databaseURL: "https://enovclanadmin-default-rtdb.firebaseio.com",
+  projectId: "enovclanadmin",
+  storageBucket: "enovclanadmin.appspot.com",
+  messagingSenderId: "1234567890",
+  appId: "1:1234567890:web:abcdef123456"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+// Elements
+const loginOverlay = document.getElementById("loginOverlay");
+const loginInput = document.getElementById("loginCode");
+const memberList = document.getElementById("memberList");
+const memberSelect = document.getElementById("memberSelect");
+const spendSelect = document.getElementById("spendSelect");
+const pointsInput = document.getElementById("pointsInput");
+const notification = document.getElementById("notification");
+const chatBox = document.getElementById("chatBox");
+const chatInput = document.getElementById("chatInput");
+
+// --- Login System ---
+const ADMIN_CODE = "enov2025";
+window.verifyLogin = function(){
+  if(loginInput.value.trim()===ADMIN_CODE){
+    loginOverlay.style.display="none";
+    initApp();
+  } else {
+    alert("Invalid code!");
+  }
+};
+
+// --- App ---
+let members = [];
+
+// Initialize app
+function initApp(){
+  const membersRef = ref(db,"members");
+
+  // Default members if DB empty
+  get(membersRef).then(snap=>{
+    if(!snap.exists()){
+      const defaults = [
+        {name:"Kai",coins:250,level:1,recruits:12,achievements:[]},
+        {name:"Spaz",coins:250,level:1,recruits:20,achievements:[]},
+        {name:"Bob",coins:250,level:1,recruits:5,achievements:[]}
+      ];
+      set(membersRef,defaults);
+    }
+  });
+
+  // Listen for member changes
+  onValue(membersRef,snap=>{
+    members = snap.val() || [];
+    renderMembers();
+    renderLeaderboard();
+  });
+
+  // Chat listener
+  const chatRef = ref(db,"chat");
+  onValue(chatRef,snap=>{
+    chatBox.innerHTML="";
+    if(snap.exists()){
+      const msgs = snap.val();
+      Object.values(msgs).forEach(m=>{
+        const p = document.createElement("p");
+        p.textContent = `${m.name}: ${m.msg}`;
+        chatBox.appendChild(p);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      });
+    }
+  });
+}
+
+// Render members
+function renderMembers(){
+  memberList.innerHTML="";
+  memberSelect.innerHTML="";
+  spendSelect.innerHTML="";
+  members.forEach((m,i)=>{
+    memberList.innerHTML+=`
+      <div class="member">
+        <span>${m.name} | Lv ${m.level} | 💰 ${m.coins}</span>
+        <span>🎯 ${m.recruits} recruits</span>
+        <span>🏆 ${m.achievements.join(", ")}</span>
+      </div>`;
+    memberSelect.innerHTML+=`<option value="${i}">${m.name}</option>`;
+    spendSelect.innerHTML+=`<option value="${i}">${m.name}</option>`;
+  });
+}
+
+// Leaderboard
+function renderLeaderboard(){
+  const board = document.getElementById("leaderboard");
+  board.innerHTML = "";
+  const sorted = [...members].sort((a,b)=>b.level - a.level || b.coins - a.coins);
+  sorted.forEach(m=>{
+    const div = document.createElement("div");
+    div.className="member";
+    div.textContent=`${m.name} | Lv ${m.level} | 💰 ${m.coins}`;
+    board.appendChild(div);
+  });
+}
+
+// Update member
+function updateMember(idx){ set(ref(db,"members/"+idx),members[idx]); }
+
+// Notification
+function showNotification(msg){
+  notification.innerText=msg;
+  notification.style.display="block";
+  setTimeout(()=>notification.style.display="none",2500);
+}
+
+// Add/Remove Points
+window.addPoints=function(){
+  let idx=memberSelect.value;
+  let pts=parseInt(pointsInput.value);
+  if(isNaN(pts)||pts<=0)return alert("Enter valid points");
+  members[idx].coins+=pts;
+  updateMember(idx);
+  showNotification(`+${pts} coins to ${members[idx].name}`);
+  pointsInput.value="";
+};
+window.removePoints=function(){
+  let idx=memberSelect.value;
+  let pts=parseInt(pointsInput.value);
+  if(isNaN(pts)||pts<=0)return alert("Enter valid points");
+  if(members[idx].coins>=pts){
+    members[idx].coins-=pts;
+    updateMember(idx);
+    showNotification(`-${pts} coins from ${members[idx].name}`);
+  } else alert("Not enough coins");
+  pointsInput.value="";
+};
+
+// Spend Coins
+window.spendCoins=function(type){
+  let idx=spendSelect.value;
+  if(type==="admin" && members[idx].coins>=1000){
+    members[idx].coins-=1000; members[idx].level+=1;
+    members[idx].achievements.push("Admin");
+    updateMember(idx);
+    showNotification(`${members[idx].name} unlocked Admin!`);
+  } else if(type==="tournament" && members[idx].coins>=500){
+    members[idx].coins-=500; updateMember(idx);
+    showNotification(`${members[idx].name} is hosting a Tournament!`);
+  } else alert("Not enough coins");
+};
+
+// Chat send
+window.sendChat=function(){
+  const msg=chatInput.value.trim();
+  if(!msg)return;
+  const chatRef = ref(db,"chat");
+  push(chatRef,{name:"Admin",msg});
+  chatInput.value="";
+};
+
+// Daily coins for demo
+setInterval(()=>{
+  members.forEach((m,i)=>{
+    m.coins+=10;
+    updateMember(i);
+  });
+  showNotification("+10 daily coins to all members!");
+},30000);
+
+</script>
+</head>
+<body>
+<header><h1>Enov Clan Futuristic Panel</h1></header>
+
+<!-- Login -->
+<div id="loginOverlay">
+  <div id="loginBox">
+    <h2>🔒 Admin Login</h2>
+    <input type="password" id="loginCode" placeholder="Enter code">
+    <button onclick="verifyLogin()">Login</button>
+  </div>
+</div>
+
+<main>
+<section>
+<h2>Clan Dashboard</h2>
+<div class="card" id="memberListCard">
+<div id="memberList"></div>
+</div>
+</section>
+
+<section>
+<h2>Admin Tools</h2>
+<div class="card">
+<select id="memberSelect"></select>
+<input type="number" id="pointsInput" placeholder="Points">
+<button onclick="addPoints()">Add Points</button>
+<button onclick="removePoints()">Remove Points</button>
+</div>
+
+<div class="card">
+<select id="spendSelect"></select>
+<button onclick="spendCoins('admin')">Unlock Admin (1000)</button>
+<button onclick="spendCoins('tournament')">Host Tournament (500)</button>
+</div>
+</section>
+
+<section>
+<h2>Leaderboard</h2>
+<div class="card" id="leaderboard"></div>
+</section>
+
+<section>
+<h2>Clan Chat</h2>
+<div class="card">
+<div id="chatBox"></div>
+<input type="text" id="chatInput" placeholder="Type a message">
+<button onclick="sendChat()">Send</button>
+</div>
+</section>
+
+<div id="notification"></div>
+</main>
+</body>
+</html>
